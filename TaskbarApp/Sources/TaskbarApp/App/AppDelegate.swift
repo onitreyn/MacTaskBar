@@ -77,7 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenuItem.submenu = appMenu
 
         let hideDockItem = NSMenuItem(
-            title: "Скрыть системный Dock",
+            title: L10n.t("menu.hideDock"),
             action: #selector(toggleSystemDock),
             keyEquivalent: ""
         )
@@ -93,7 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // ARCHITECTURE.md п.13.5) — тут можно просто нажать и вернуть Dock,
         // не разбираясь, в каком состоянии сейчас переключатель.
         let restoreDockItem = NSMenuItem(
-            title: "Вернуть системный Dock",
+            title: L10n.t("menu.restoreDock"),
             action: #selector(restoreSystemDock),
             keyEquivalent: ""
         )
@@ -101,11 +101,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(restoreDockItem)
 
         appMenu.addItem(.separator())
+
+        let languageItem = NSMenuItem(title: L10n.t("menu.language"), action: nil, keyEquivalent: "")
+        languageItem.submenu = languageMenu()
+        appMenu.addItem(languageItem)
+
+        appMenu.addItem(.separator())
         appMenu.addItem(
-            NSMenuItem(title: "Выйти из TaskbarApp", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            NSMenuItem(title: L10n.t("menu.quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         )
 
         NSApp.mainMenu = mainMenu
+    }
+
+    /// Подменю выбора языка: «Системный (авто)», «Русский», «English».
+    /// Текущий выбор отмечается галочкой.
+    private func languageMenu() -> NSMenu {
+        let menu = NSMenu()
+        for language in AppLanguage.allCases {
+            let title: String
+            switch language {
+            case .system: title = L10n.t("menu.language.system")
+            case .russian: title = L10n.t("menu.language.russian")
+            case .english: title = L10n.t("menu.language.english")
+            }
+
+            let item = NSMenuItem(title: title, action: #selector(selectLanguage(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = language.rawValue
+            item.state = (language == AppLanguage.current) ? .on : .off
+            menu.addItem(item)
+        }
+        return menu
+    }
+
+    @objc private func selectLanguage(_ sender: NSMenuItem) {
+        guard let language = AppLanguage(rawValue: sender.tag) else { return }
+        language.apply()
+        L10n.reload()
+        // Пересобираем главное меню, чтобы подписи и галочка обновились на новом языке.
+        setupMainMenu()
     }
 
     @objc private func toggleSystemDock() {

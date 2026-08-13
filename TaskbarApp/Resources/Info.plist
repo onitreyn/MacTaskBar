@@ -6,6 +6,8 @@
     <string>TaskbarApp</string>
     <key>CFBundleIdentifier</key>
     <string>com.local.taskbarapp</string>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
     <key>CFBundleVersion</key>
     <string>0.1.0</string>
     <key>CFBundleShortVersionString</key>
@@ -17,6 +19,6 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAccessibilityUsageDescription</key>
-    <string>TaskbarApp нужен доступ Accessibility, чтобы показывать список открытых окон и переключаться между ними, как в панели задач Windows.</string>
+    <string>TaskbarApp needs Accessibility access to show open windows and switch between them, like the Windows taskbar.</string>
 </dict>
 </plist>

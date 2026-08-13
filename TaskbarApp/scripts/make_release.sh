@@ -21,6 +21,13 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BIN_PATH" "$APP_DIR/Contents/MacOS/TaskbarApp"
 cp "Resources/Info.plist" "$APP_DIR/Contents/Info.plist"
 
+# Локализации: Localizable.strings + InfoPlist.strings для каждого языка.
+for lproj in Resources/*.lproj; do
+    if [ -d "$lproj" ]; then
+        cp -R "$lproj" "$APP_DIR/Contents/Resources/"
+    fi
+done
+
 SIGN_IDENTITY="TaskbarApp Local Dev"
 if security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY"; then
     echo "==> codesign ($SIGN_IDENTITY)"

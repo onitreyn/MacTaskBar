@@ -43,23 +43,23 @@ final class StartButtonView: NSView {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
-        let finder = NSMenuItem(title: "Открыть Finder", action: #selector(openFinder), keyEquivalent: "")
+        let finder = NSMenuItem(title: L10n.t("start.openFinder"), action: #selector(openFinder), keyEquivalent: "")
         finder.target = self
         menu.addItem(finder)
 
-        let settings = NSMenuItem(title: "Системные настройки", action: #selector(openSystemSettings), keyEquivalent: "")
+        let settings = NSMenuItem(title: L10n.t("start.systemSettings"), action: #selector(openSystemSettings), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
 
         menu.addItem(.separator())
 
-        let programs = NSMenuItem(title: "Программы", action: nil, keyEquivalent: "")
+        let programs = NSMenuItem(title: L10n.t("start.applications"), action: nil, keyEquivalent: "")
         programs.submenu = applicationsSubmenu()
         menu.addItem(programs)
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Выйти из TaskbarApp", action: #selector(quitApp), keyEquivalent: "")
+        let quit = NSMenuItem(title: L10n.t("menu.quit"), action: #selector(quitApp), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
 
@@ -71,7 +71,7 @@ final class StartButtonView: NSView {
         let apps = installedApplications()
 
         if apps.isEmpty {
-            submenu.addItem(NSMenuItem(title: "(пусто)", action: nil, keyEquivalent: ""))
+            submenu.addItem(NSMenuItem(title: L10n.t("start.empty"), action: nil, keyEquivalent: ""))
             return submenu
         }
 

@@ -1,0 +1,17 @@
+"menu.hideDock" = "Скрыть системный Dock";
+"menu.restoreDock" = "Вернуть системный Dock";
+"menu.quit" = "Выйти из TaskbarApp";
+"menu.language" = "Язык";
+"menu.language.system" = "Системный (авто)";
+"menu.language.russian" = "Русский";
+"menu.language.english" = "English";
+"action.bringToFront" = "Вывести на передний план";
+"action.snap" = "Развернуть под Taskbar";
+"action.moveToScreen" = "Переместить на экран %d";
+"action.closeWindow" = "Закрыть окно";
+"action.quitApp" = "Завершить приложение";
+"window.untitled" = "(без названия)";
+"start.openFinder" = "Открыть Finder";
+"start.systemSettings" = "Системные настройки";
+"start.applications" = "Программы";
+"start.empty" = "(пусто)";

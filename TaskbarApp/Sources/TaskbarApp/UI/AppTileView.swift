@@ -159,11 +159,11 @@ final class AppTileView: NSView {
         }
 
         menu.addItem(
-            menuItem(title: "Вывести на передний план", dotColor: .systemBlue, action: #selector(handleBringToFront))
+            menuItem(title: L10n.t("action.bringToFront"), dotColor: .systemBlue, action: #selector(handleBringToFront))
         )
 
         menu.addItem(
-            menuItem(title: "Развернуть под Taskbar", dotColor: .systemPurple, action: #selector(handleSnapToggle))
+            menuItem(title: L10n.t("action.snap"), dotColor: .systemPurple, action: #selector(handleSnapToggle))
         )
 
         // Пункты переноса на экран показываем, только если экранов больше
@@ -176,7 +176,7 @@ final class AppTileView: NSView {
             let beige = NSColor(srgbRed: 0.82, green: 0.71, blue: 0.55, alpha: 1.0)
             for index in screens.indices {
                 let item = menuItem(
-                    title: "Переместить на экран \(index + 1)",
+                    title: String(format: L10n.t("action.moveToScreen"), index + 1),
                     dotColor: beige,
                     action: #selector(handleMoveToScreen(_:))
                 )
@@ -188,10 +188,10 @@ final class AppTileView: NSView {
         menu.addItem(.separator())
 
         menu.addItem(
-            menuItem(title: "Закрыть окно", dotColor: .systemOrange, action: #selector(handleCloseWindow))
+            menuItem(title: L10n.t("action.closeWindow"), dotColor: .systemOrange, action: #selector(handleCloseWindow))
         )
         menu.addItem(
-            menuItem(title: "Завершить приложение", dotColor: .systemRed, action: #selector(handleTerminateApp))
+            menuItem(title: L10n.t("action.quitApp"), dotColor: .systemRed, action: #selector(handleTerminateApp))
         )
 
         menu.items.forEach { $0.target = self }
@@ -203,7 +203,7 @@ final class AppTileView: NSView {
     private func windowListTitle(for window: WindowInfo) -> NSAttributedString {
         let dotColor: NSColor = window.isMinimized ? .systemGray : .systemGreen
 
-        var title = window.title.isEmpty ? "(без названия)" : window.title
+        var title = window.title.isEmpty ? L10n.t("window.untitled") : window.title
         if title.count > 50 {
             title = String(title.prefix(50)) + "…"
         }

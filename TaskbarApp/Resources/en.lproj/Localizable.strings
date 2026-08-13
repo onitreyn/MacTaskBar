@@ -1,0 +1,17 @@
+"menu.hideDock" = "Hide System Dock";
+"menu.restoreDock" = "Restore System Dock";
+"menu.quit" = "Quit TaskbarApp";
+"menu.language" = "Language";
+"menu.language.system" = "System default";
+"menu.language.russian" = "Русский";
+"menu.language.english" = "English";
+"action.bringToFront" = "Bring to Front";
+"action.snap" = "Maximize under Taskbar";
+"action.moveToScreen" = "Move to Screen %d";
+"action.closeWindow" = "Close Window";
+"action.quitApp" = "Quit App";
+"window.untitled" = "(untitled)";
+"start.openFinder" = "Open Finder";
+"start.systemSettings" = "System Settings";
+"start.applications" = "Applications";
+"start.empty" = "(empty)";
