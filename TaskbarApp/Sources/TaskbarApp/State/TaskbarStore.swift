@@ -16,10 +16,12 @@ final class TaskbarStore: ObservableObject {
     @Published private(set) var isAccessibilityGranted: Bool = PermissionsService.shared.isAccessibilityGranted
 
     private let lifecycleObserver = AppLifecycleObserver()
+    private let pinnedItemsStore: PinnedItemsStore
     private var windowManagers: [pid_t: WindowManager] = [:]
     private var axObservers: [pid_t: AXWindowObserver] = [:]
     private var refreshTimer: Timer?
     private var refreshWorkItem: DispatchWorkItem?
+    private var cancellables: Set<AnyCancellable> = []
 
     /// Self-heal интервал опроса. Событийный AXObserver подхватывает изменения
     /// мгновенно, а этот медленный опрос страхует от приложений с неполным AX-деревом,
@@ -27,7 +29,10 @@ final class TaskbarStore: ObservableObject {
     private let pollInterval: TimeInterval = 1.0
 
     init() {
+        pinnedItemsStore = PinnedItemsStore()
         setupLifecycleCallbacks()
+        AppLauncherIndex.shared.refresh()
+        setupPinSubscription()
     }
 
     /// Запускает наблюдение. Вызывается после того, как получено разрешение Accessibility,
@@ -93,6 +98,22 @@ final class TaskbarStore: ObservableObject {
         }
     }
 
+    // MARK: - Pinning & launching
+
+    func isPinned(_ bundleIdentifier: String) -> Bool {
+        pinnedItemsStore.isPinned(bundleIdentifier)
+    }
+
+    func togglePin(app: RunningAppInfo) {
+        guard let bundleIdentifier = app.bundleIdentifier else { return }
+        pinnedItemsStore.togglePin(bundleIdentifier: bundleIdentifier)
+        refreshAllApps()
+    }
+
+    func launch(bundleIdentifier: String) {
+        AppLauncherIndex.shared.launch(bundleIdentifier: bundleIdentifier)
+    }
+
     // MARK: - Private
 
     private func setupLifecycleCallbacks() {
@@ -125,6 +146,15 @@ final class TaskbarStore: ObservableObject {
         }
     }
 
+    private func setupPinSubscription() {
+        pinnedItemsStore.$pinnedBundleIdentifiers
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.refreshAllApps()
+            }
+            .store(in: &cancellables)
+    }
+
     /// Коалесцирует всплески AX-уведомлений (например, приложение при запуске
     /// открывает несколько окон подряд) в один пересбор панели.
     private func scheduleRefresh() {
@@ -152,6 +182,50 @@ final class TaskbarStore: ObservableObject {
     }
 
     private func refreshAllApps() {
+        let onScreenWindows = SpaceObserver.currentSpaceOnScreenWindows()
+        let runningApps = currentRunningApps(onScreenWindows: onScreenWindows)
+
+        // Закреплённые приложения первыми (в порядке закрепления): запущенные — как
+        // обычные плитки, не запущенные — как плитки-лаунчеры (клик запускает).
+        var runningByBundleID: [String: RunningAppInfo] = [:]
+        for app in runningApps {
+            if let bundleID = app.bundleIdentifier {
+                runningByBundleID[bundleID] = app
+            }
+        }
+
+        var items: [RunningAppInfo] = []
+        var pinnedBundleIDs = Set<String>()
+
+        for bundleID in pinnedItemsStore.pinnedBundleIdentifiers {
+            pinnedBundleIDs.insert(bundleID)
+            if let running = runningByBundleID[bundleID] {
+                items.append(running)
+            } else if let entry = AppLauncherIndex.shared.entry(forBundleIdentifier: bundleID) {
+                items.append(
+                    RunningAppInfo(
+                        pid: 0,
+                        bundleIdentifier: entry.bundleIdentifier,
+                        localizedName: entry.name,
+                        icon: entry.icon,
+                        windows: [],
+                        isActive: false,
+                        isRunning: false
+                    )
+                )
+            }
+        }
+
+        // Остальные запущенные приложения — после закреплённых.
+        for app in runningApps {
+            if let bundleID = app.bundleIdentifier, pinnedBundleIDs.contains(bundleID) { continue }
+            items.append(app)
+        }
+
+        apps = items
+    }
+
+    private func currentRunningApps(onScreenWindows: [SpaceObserver.OnScreenWindow]) -> [RunningAppInfo] {
         let runningApps = lifecycleObserver.currentRegularApplications()
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
 
@@ -165,7 +239,7 @@ final class TaskbarStore: ObservableObject {
                 return newManager
             }()
 
-            let windows = manager.fetchWindows()
+            let windows = manager.fetchWindows(onScreenWindows: onScreenWindows)
 
             // Приложения без окон (например, чисто фоновые agent-процессы,
             // случайно попавшие под .regular policy) не показываем в панели.
@@ -178,11 +252,12 @@ final class TaskbarStore: ObservableObject {
                     localizedName: app.localizedName ?? app.bundleIdentifier ?? "Unknown",
                     icon: app.icon,
                     windows: windows,
-                    isActive: pid == frontmostPID
+                    isActive: pid == frontmostPID,
+                    isRunning: true
                 )
             )
         }
 
-        apps = updated.sorted { $0.localizedName.localizedCaseInsensitiveCompare($1.localizedName) == .orderedAscending }
+        return updated.sorted { $0.localizedName.localizedCaseInsensitiveCompare($1.localizedName) == .orderedAscending }
     }
 }

@@ -68,17 +68,18 @@ final class StartButtonView: NSView {
 
     private func applicationsSubmenu() -> NSMenu {
         let submenu = NSMenu()
-        let apps = installedApplications()
+        let entries = AppLauncherIndex.shared.entries
 
-        if apps.isEmpty {
+        if entries.isEmpty {
             submenu.addItem(NSMenuItem(title: L10n.t("start.empty"), action: nil, keyEquivalent: ""))
             return submenu
         }
 
-        for app in apps {
-            let item = NSMenuItem(title: app.displayName, action: #selector(openApplication(_:)), keyEquivalent: "")
+        for entry in entries {
+            let item = NSMenuItem(title: entry.name, action: #selector(openApplication(_:)), keyEquivalent: "")
             item.target = self
-            item.representedObject = app.path
+            item.image = entry.icon
+            item.representedObject = entry.url.path
             submenu.addItem(item)
         }
         return submenu
@@ -102,21 +103,5 @@ final class StartButtonView: NSView {
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
-    }
-
-    // MARK: - Helpers
-
-    private func installedApplications() -> [(displayName: String, path: String)] {
-        let dir = URL(fileURLWithPath: "/Applications")
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: dir,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
-
-        return contents
-            .filter { $0.pathExtension == "app" }
-            .map { ($0.deletingPathExtension().lastPathComponent, $0.path) }
-            .sorted { $0.0.localizedCaseInsensitiveCompare($1.0) == .orderedAscending }
     }
 }

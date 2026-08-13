@@ -19,8 +19,9 @@ final class WindowManager {
 
     /// Возвращает окна приложения, пригодные для показа в панели задач.
     /// Отфильтровывает служебные окна без роли kAXWindowRole и окна без заголовка,
-    /// которые обычно являются HUD/panel-элементами интерфейса.
-    func fetchWindows() -> [WindowInfo] {
+    /// которые обычно являются HUD/panel-элементами интерфейса, а также (если
+    /// `onScreenWindows` непуст) окна на других Space'ах.
+    func fetchWindows(onScreenWindows: [SpaceObserver.OnScreenWindow]) -> [WindowInfo] {
         var windowsRef: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(
             appElement,
@@ -31,12 +32,17 @@ final class WindowManager {
         guard result == .success, let windowsRef else { return [] }
         guard let axWindows = windowsRef as? [AXUIElement] else { return [] }
 
+        let spaceAware = !onScreenWindows.isEmpty
         return axWindows.compactMap { axWindow in
-            makeWindowInfo(from: axWindow)
+            makeWindowInfo(from: axWindow, onScreenWindows: onScreenWindows, spaceAware: spaceAware)
         }
     }
 
-    private func makeWindowInfo(from axWindow: AXUIElement) -> WindowInfo? {
+    private func makeWindowInfo(
+        from axWindow: AXUIElement,
+        onScreenWindows: [SpaceObserver.OnScreenWindow],
+        spaceAware: Bool
+    ) -> WindowInfo? {
         // Роль окна — отсекаем панели/HUD, которые не являются обычными окнами документа.
         guard let role = copyStringAttribute(axWindow, kAXRoleAttribute), role == kAXWindowRole as String else {
             return nil
@@ -45,6 +51,20 @@ final class WindowManager {
         let title = copyStringAttribute(axWindow, kAXTitleAttribute) ?? ""
         let isMinimized = copyBoolAttribute(axWindow, kAXMinimizedAttribute) ?? false
         let frame = copyFrameAttribute(axWindow) ?? .zero
+
+        // Сопоставляем окно с on-screen снапшотом: даёт CGWindowID (для превью)
+        // и факт нахождения на текущем Space.
+        let matched = frame.width > 0 && frame.height > 0
+            ? onScreenWindows.first { SpaceObserver.matches(frame, $0, pid: pid) }
+            : nil
+
+        // Space-aware: отбрасываем окна на другом Space. Свёрнутые окна оставляем
+        // всегда (свёрнутость — известная причина отсутствия в on-screen снапшоте),
+        // как и окна с неизвестным фреймом (иначе они бы мигали при запуске
+        // приложения, пока AX-дерево ещё не отдаёт позицию).
+        if spaceAware, !isMinimized, frame.width > 0, frame.height > 0 {
+            guard matched != nil else { return nil }
+        }
 
         // Идентификатор строим из pid + указателя на AXUIElement, приведённого к строке.
         // AXUIElement — CFType, поэтому используем его CFHash как стабильный (в рамках сессии) ключ.
@@ -57,7 +77,8 @@ final class WindowManager {
             axElement: axWindow,
             title: title,
             isMinimized: isMinimized,
-            frame: frame
+            frame: frame,
+            windowNumber: matched?.windowNumber
         )
     }
 

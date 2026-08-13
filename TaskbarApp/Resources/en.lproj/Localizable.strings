@@ -5,11 +5,13 @@
 "menu.language.system" = "System default";
 "menu.language.russian" = "Русский";
 "menu.language.english" = "English";
-"action.bringToFront" = "Bring to Front";
 "action.snap" = "Fill Screen";
 "action.moveToScreen" = "Move to Screen %d";
 "action.closeWindow" = "Close Window";
 "action.quitApp" = "Quit App";
+"action.pin" = "Pin to Taskbar";
+"action.unpin" = "Unpin";
+"action.launch" = "Launch";
 "window.untitled" = "(untitled)";
 "start.openFinder" = "Open Finder";
 "start.systemSettings" = "System Settings";

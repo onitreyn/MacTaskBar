@@ -82,14 +82,12 @@ final class TaskbarPanelController {
             let tile = AppTileView(
                 app: app,
                 showsTitle: showsTitle,
+                isPinned: app.bundleIdentifier.map { store.isPinned($0) } ?? false,
                 onClick: { [weak self] tappedApp in
                     self?.handleTileClick(app: tappedApp)
                 },
                 onSnapToggle: { [weak self] tappedApp in
                     self?.handleSnapToggle(app: tappedApp)
-                },
-                onBringToFront: { [weak self] tappedApp in
-                    self?.handleBringToFront(app: tappedApp)
                 },
                 onMoveToScreen: { [weak self] tappedApp, screenIndex in
                     self?.handleMoveToScreen(app: tappedApp, screenIndex: screenIndex)
@@ -102,6 +100,9 @@ final class TaskbarPanelController {
                 },
                 onTerminateApp: { [weak self] tappedApp in
                     self?.handleTerminateApp(app: tappedApp)
+                },
+                onTogglePin: { [weak self] tappedApp in
+                    self?.handleTogglePin(app: tappedApp)
                 }
             )
             tile.translatesAutoresizingMaskIntoConstraints = false
@@ -145,14 +146,17 @@ final class TaskbarPanelController {
     }
 
     private func handleTileClick(app: RunningAppInfo) {
-        // Клик по активному приложению сворачивает его, по неактивному — активирует.
-        store.activateOrMinimize(app: app)
+        if app.isRunning {
+            // Клик по активному приложению сворачивает его, по неактивному — активирует.
+            store.activateOrMinimize(app: app)
+        } else if let bundleIdentifier = app.bundleIdentifier {
+            // Закреплённое, но не запущенное приложение — запускаем.
+            store.launch(bundleIdentifier: bundleIdentifier)
+        }
     }
 
-    private func handleBringToFront(app: RunningAppInfo) {
-        // Та же логика выбора целевого окна, что и у обычного клика активации.
-        guard let window = app.windows.first(where: { !$0.isMinimized }) ?? app.windows.first else { return }
-        WindowActionService.bringToFront(window)
+    private func handleTogglePin(app: RunningAppInfo) {
+        store.togglePin(app: app)
     }
 
     private func handleSnapToggle(app: RunningAppInfo) {

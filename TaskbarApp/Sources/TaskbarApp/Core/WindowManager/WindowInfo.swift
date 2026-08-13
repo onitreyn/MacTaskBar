@@ -22,6 +22,10 @@ struct WindowInfo: Identifiable, Hashable {
     /// Границы окна на экране (в координатах AppKit, low-left origin приведён отдельно при необходимости).
     var frame: CGRect
 
+    /// CGWindowID окна (из CGWindowList) — используется для превью через ScreenCaptureKit.
+    /// nil, если окно не сопоставлено on-screen снапшоту (например, свёрнуто).
+    var windowNumber: CGWindowID?
+
     static func == (lhs: WindowInfo, rhs: WindowInfo) -> Bool {
         lhs.id == rhs.id
     }
@@ -32,26 +36,33 @@ struct WindowInfo: Identifiable, Hashable {
 }
 
 /// Модель запущенного приложения, агрегирующая его окна.
+/// Также используется для закреплённых, но не запущенных приложений
+/// (`isRunning == false`, пустые окна) — тогда клик по плитке запускает приложение.
 struct RunningAppInfo: Identifiable, Hashable {
-    /// В качестве id используем PID — уникален пока приложение запущено.
-    var id: pid_t { pid }
+    /// Для запущенных приложений — "pid-<pid>", для закреплённых не запущенных —
+    /// "bundle-<bundleID>".
+    var id: String { isRunning ? "pid-\(pid)" : "bundle-\(bundleIdentifier ?? "\(pid)")" }
 
     let pid: pid_t
     let bundleIdentifier: String?
     let localizedName: String
     let icon: NSImage?
 
-    /// Окна, принадлежащие приложению. Обновляется TaskbarStore.
+    /// Окна, принадлежащие приложению. Обновляется TaskbarStore. Пусто у
+    /// закреплённых не запущенных приложений.
     var windows: [WindowInfo]
 
     /// Активно ли приложение (foreground) в данный момент.
     var isActive: Bool
 
+    /// Запущено ли приложение. У закреплённых не запущенных — false.
+    var isRunning: Bool
+
     static func == (lhs: RunningAppInfo, rhs: RunningAppInfo) -> Bool {
-        lhs.pid == rhs.pid
+        lhs.id == rhs.id
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(pid)
+        hasher.combine(id)
     }
 }
