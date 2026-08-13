@@ -145,9 +145,8 @@ final class TaskbarPanelController {
     }
 
     private func handleTileClick(app: RunningAppInfo) {
-        // MVP: активируем первое не свёрнутое окно приложения, либо первое любое.
-        guard let window = app.windows.first(where: { !$0.isMinimized }) ?? app.windows.first else { return }
-        store.activate(window: window)
+        // Клик по активному приложению сворачивает его, по неактивному — активирует.
+        store.activateOrMinimize(app: app)
     }
 
     private func handleBringToFront(app: RunningAppInfo) {

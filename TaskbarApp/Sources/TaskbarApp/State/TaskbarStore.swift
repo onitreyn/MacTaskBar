@@ -17,11 +17,14 @@ final class TaskbarStore: ObservableObject {
 
     private let lifecycleObserver = AppLifecycleObserver()
     private var windowManagers: [pid_t: WindowManager] = [:]
+    private var axObservers: [pid_t: AXWindowObserver] = [:]
     private var refreshTimer: Timer?
+    private var refreshWorkItem: DispatchWorkItem?
 
-    /// Интервал опроса окон. 500 мс — компромисс между отзывчивостью и нагрузкой на CPU,
-    /// как зафиксировано в разделе рисков архитектуры (п.13.4).
-    private let pollInterval: TimeInterval = 0.5
+    /// Self-heal интервал опроса. Событийный AXObserver подхватывает изменения
+    /// мгновенно, а этот медленный опрос страхует от приложений с неполным AX-деревом,
+    /// которые не шлют нужные уведомления (подход заимствован из macTaskbar).
+    private let pollInterval: TimeInterval = 1.0
 
     init() {
         setupLifecycleCallbacks()
@@ -40,6 +43,7 @@ final class TaskbarStore: ObservableObject {
         }
 
         refreshAllApps()
+        registerObserversForAllRunningApps()
         startPolling()
     }
 
@@ -51,6 +55,19 @@ final class TaskbarStore: ObservableObject {
     // MARK: - Actions (проксируем в WindowActionService, чтобы UI не знал про AX напрямую)
 
     func activate(window: WindowInfo) {
+        WindowActionService.activate(window)
+    }
+
+    /// Клик по плитке: если приложение уже активно — сворачиваем его окно,
+    /// иначе активируем. Поведение заимствовано из macTaskbar (activateOrMinimize).
+    func activateOrMinimize(app: RunningAppInfo) {
+        if app.isActive, let window = app.windows.first(where: { !$0.isMinimized }) {
+            WindowActionService.minimize(window)
+            refreshAllApps()
+            return
+        }
+
+        guard let window = app.windows.first(where: { !$0.isMinimized }) ?? app.windows.first else { return }
         WindowActionService.activate(window)
     }
 
@@ -80,10 +97,12 @@ final class TaskbarStore: ObservableObject {
 
     private func setupLifecycleCallbacks() {
         lifecycleObserver.onAppLaunched = { [weak self] app in
+            self?.registerAXObserver(for: app.processIdentifier)
             self?.refreshAllApps()
         }
         lifecycleObserver.onAppTerminated = { [weak self] app in
             self?.windowManagers.removeValue(forKey: app.processIdentifier)
+            self?.axObservers.removeValue(forKey: app.processIdentifier)
             self?.refreshAllApps()
         }
         lifecycleObserver.onAppActivated = { [weak self] app in
@@ -103,6 +122,32 @@ final class TaskbarStore: ObservableObject {
     private func markActive(pid: pid_t) {
         for index in apps.indices {
             apps[index].isActive = (apps[index].pid == pid)
+        }
+    }
+
+    /// Коалесцирует всплески AX-уведомлений (например, приложение при запуске
+    /// открывает несколько окон подряд) в один пересбор панели.
+    private func scheduleRefresh() {
+        refreshWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.refreshAllApps()
+        }
+        refreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)
+    }
+
+    private func registerObserversForAllRunningApps() {
+        for app in lifecycleObserver.currentRegularApplications() {
+            registerAXObserver(for: app.processIdentifier)
+        }
+    }
+
+    private func registerAXObserver(for pid: pid_t) {
+        guard isAccessibilityGranted, axObservers[pid] == nil else { return }
+        axObservers[pid] = AXWindowObserver(pid: pid) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.scheduleRefresh()
+            }
         }
     }
 
