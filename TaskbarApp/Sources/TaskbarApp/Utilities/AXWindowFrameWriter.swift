@@ -22,4 +22,28 @@ enum AXWindowFrameWriter {
         AXUIElementSetAttributeValue(axElement, kAXSizeAttribute as CFString, sizeValue)
         AXUIElementSetAttributeValue(axElement, kAXPositionAttribute as CFString, positionValue)
     }
+
+    /// Читает текущий frame (position + size) окна через AX API.
+    /// Возвращает `nil`, если атрибуты недоступны. Используется для проверки,
+    /// что `apply` реально применил нужную геометрию (некоторые приложения
+    /// применяют AX-ресайз не с первого раза).
+    static func currentFrame(of axElement: AXUIElement) -> CGRect? {
+        var positionRef: CFTypeRef?
+        var sizeRef: CFTypeRef?
+
+        let posResult = AXUIElementCopyAttributeValue(axElement, kAXPositionAttribute as CFString, &positionRef)
+        let sizeResult = AXUIElementCopyAttributeValue(axElement, kAXSizeAttribute as CFString, &sizeRef)
+
+        guard posResult == .success, sizeResult == .success,
+              let positionRef, let sizeRef else { return nil }
+
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        // swiftlint:disable force_cast
+        AXValueGetValue(positionRef as! AXValue, .cgPoint, &origin)
+        AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+        // swiftlint:enable force_cast
+
+        return CGRect(origin: origin, size: size)
+    }
 }

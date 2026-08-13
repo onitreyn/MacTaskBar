@@ -6,7 +6,7 @@
 "menu.language.russian" = "Русский";
 "menu.language.english" = "English";
 "action.bringToFront" = "Bring to Front";
-"action.snap" = "Maximize under Taskbar";
+"action.snap" = "Fill Screen";
 "action.moveToScreen" = "Move to Screen %d";
 "action.closeWindow" = "Close Window";
 "action.quitApp" = "Quit App";

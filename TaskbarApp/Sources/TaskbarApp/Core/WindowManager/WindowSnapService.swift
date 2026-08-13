@@ -39,7 +39,7 @@ final class WindowSnapService {
             restore(window)
         } else {
             savedFrames[window.id] = window.frame
-            apply(snapFrame, to: window)
+            applyWithRetry(snapFrame, to: window)
         }
     }
 
@@ -52,12 +52,32 @@ final class WindowSnapService {
             // остаётся в текущем (snap) состоянии, пользователь подвинет сам.
             return
         }
-        apply(previousFrame, to: window)
+        applyWithRetry(previousFrame, to: window)
         savedFrames.removeValue(forKey: window.id)
     }
 
     private func apply(_ frame: CGRect, to window: WindowInfo) {
         AXWindowFrameWriter.apply(frame, to: window.axElement)
+    }
+
+    /// Применяет frame и страхуется повторной проверкой: некоторые приложения
+    /// (особенно браузеры и окна с собственными min/max-ограничениями)
+    /// применяют AX-ресайз не с первого раза — при развороте на всю ширину
+    /// экрана окно может «недотянуть» до края. Через короткую паузу
+    /// перечитываем фактический frame и, если он не совпал, применяем снова.
+    private func applyWithRetry(_ frame: CGRect, to window: WindowInfo, attemptsLeft: Int = 2) {
+        apply(frame, to: window)
+
+        guard attemptsLeft > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard let current = AXWindowFrameWriter.currentFrame(of: window.axElement) else { return }
+                if !self.isFrame(current, approximatelyEqualTo: frame) {
+                    self.applyWithRetry(frame, to: window, attemptsLeft: attemptsLeft - 1)
+                }
+            }
+        }
     }
 
     private func screenContaining(_ quartzFrame: CGRect) -> NSScreen? {

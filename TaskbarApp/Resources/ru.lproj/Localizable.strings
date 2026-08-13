@@ -6,7 +6,7 @@
 "menu.language.russian" = "Русский";
 "menu.language.english" = "English";
 "action.bringToFront" = "Вывести на передний план";
-"action.snap" = "Развернуть под Taskbar";
+"action.snap" = "Растянуть на экран";
 "action.moveToScreen" = "Переместить на экран %d";
 "action.closeWindow" = "Закрыть окно";
 "action.quitApp" = "Завершить приложение";
