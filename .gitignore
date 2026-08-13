@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# SwiftPM
+.build/
+.swiftpm/
+
+# Собранное приложение (build_app.sh кладёт сюда подписанный .app)
+build/
