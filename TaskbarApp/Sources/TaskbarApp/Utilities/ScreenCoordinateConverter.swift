@@ -40,4 +40,16 @@ enum ScreenCoordinateConverter {
         let center = CGPoint(x: quartzFrame.midX, y: quartzFrame.midY)
         return NSScreen.screens.first { cocoaToQuartz($0.frame).contains(center) } ?? NSScreen.main
     }
+
+    /// Высота системного menu bar в points. Меню-бар есть на КАЖДОМ экране
+    /// (macOS с «Displays have separate Spaces»), но `NSScreen.visibleFrame`
+    /// вычитает его только у основного экрана — поэтому для вторичных экранов
+    /// нельзя полагаться на visibleFrame и нужна отдельная константа.
+    /// Вычисляем по главному экрану как разницу frame/visibleFrame сверху —
+    /// это надёжнее, чем `NSApp.mainMenu?.menuBarHeight` (тот возвращал разные
+    /// значения в рантайме приложения: то 30, то 33, при реальных ~34).
+    static var menuBarHeight: CGFloat {
+        guard let primary = NSScreen.screens.first else { return 0 }
+        return primary.frame.maxY - primary.visibleFrame.maxY
+    }
 }

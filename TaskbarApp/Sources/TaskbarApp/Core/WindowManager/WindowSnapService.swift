@@ -22,28 +22,35 @@ final class WindowSnapService {
     /// window.id (см. WindowInfo) -> frame до снапа.
     private var savedFrames: [String: CGRect] = [:]
 
-    /// Допуск в points при сравнении текущего frame окна со snap-frame —
-    /// AX API возвращает координаты с плавающей точкой, точное совпадение
-    /// не гарантировано даже сразу после того, как мы сами его выставили.
-    private let toleranceInPoints: CGFloat = 2
-
     /// Переключает snap-состояние окна: если окно сейчас в snap-позиции —
     /// возвращает к сохранённому размеру, иначе — сохраняет текущий размер
     /// и разворачивает под Taskbar.
     func toggleSnap(_ window: WindowInfo) {
-        guard let screen = screenContaining(window.frame) else { return }
+        // Читаем АКТУАЛЬНЫЙ frame через AX, а не доверяем `window.frame` из снапшота:
+        // тот мог устареть (например, сразу после «Переместить на экран N» без
+        // промежуточного рефреша), из-за чего окно снапалось бы на старый экран.
+        guard let currentFrame = AXWindowFrameWriter.currentFrame(of: window.axElement) else { return }
+        guard let screen = screenContaining(currentFrame) else { return }
 
         let snapFrame = snapFrame(for: screen)
 
-        if isFrame(window.frame, approximatelyEqualTo: snapFrame) {
+        if AXWindowFrameWriter.isApproximatelyEqual(currentFrame, snapFrame) {
             restore(window)
         } else {
-            savedFrames[window.id] = window.frame
-            applyWithRetry(snapFrame, to: window)
+            savedFrames[window.id] = currentFrame
+            AXWindowFrameWriter.applyWithRetry(snapFrame, to: window.axElement)
         }
     }
 
     // MARK: - Private
+
+    /// Сбрасывает сохранённый pre-snap frame окна. Вызывается при переносе окна
+    /// на другой экран (`WindowScreenMoveService`): сохранённая до снапа
+    /// позиция становится неактуальной, и повторный «Растянуть» не должен
+    /// возвращать окно на старый экран.
+    func invalidateSavedFrame(forWindowID id: String) {
+        savedFrames.removeValue(forKey: id)
+    }
 
     private func restore(_ window: WindowInfo) {
         guard let previousFrame = savedFrames[window.id] else {
@@ -52,32 +59,8 @@ final class WindowSnapService {
             // остаётся в текущем (snap) состоянии, пользователь подвинет сам.
             return
         }
-        applyWithRetry(previousFrame, to: window)
+        AXWindowFrameWriter.applyWithRetry(previousFrame, to: window.axElement)
         savedFrames.removeValue(forKey: window.id)
-    }
-
-    private func apply(_ frame: CGRect, to window: WindowInfo) {
-        AXWindowFrameWriter.apply(frame, to: window.axElement)
-    }
-
-    /// Применяет frame и страхуется повторной проверкой: некоторые приложения
-    /// (особенно браузеры и окна с собственными min/max-ограничениями)
-    /// применяют AX-ресайз не с первого раза — при развороте на всю ширину
-    /// экрана окно может «недотянуть» до края. Через короткую паузу
-    /// перечитываем фактический frame и, если он не совпал, применяем снова.
-    private func applyWithRetry(_ frame: CGRect, to window: WindowInfo, attemptsLeft: Int = 2) {
-        apply(frame, to: window)
-
-        guard attemptsLeft > 0 else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard let current = AXWindowFrameWriter.currentFrame(of: window.axElement) else { return }
-                if !self.isFrame(current, approximatelyEqualTo: frame) {
-                    self.applyWithRetry(frame, to: window, attemptsLeft: attemptsLeft - 1)
-                }
-            }
-        }
     }
 
     private func screenContaining(_ quartzFrame: CGRect) -> NSScreen? {
@@ -91,14 +74,12 @@ final class WindowSnapService {
     /// ограниченного нашей панелью задач (`TaskbarConstants.panelHeight`).
     private func snapFrame(for screen: NSScreen) -> CGRect {
         let screenQuartz = ScreenCoordinateConverter.cocoaToQuartz(screen.frame)
-        let visibleQuartz = ScreenCoordinateConverter.cocoaToQuartz(screen.visibleFrame)
 
         // В Quartz Y растёт вниз: origin.y прямоугольника — это его ВЕРХНЯЯ
-        // граница, а не нижняя (в отличие от Cocoa). Поэтому "верх под menu bar"
-        // это просто origin.y конвертированного visibleFrame, а "низ над нашей
-        // панелью" — это нижняя граница экрана (origin.y + height) минус высота
-        // панели.
-        let topY = visibleQuartz.origin.y
+        // граница, а не нижняя (в отличие от Cocoa). "Верх под menu bar" —
+        // это origin экрана + высота menu bar (menu bar есть на каждом экране),
+        // а "низ над нашей панелью" — нижняя граница экрана минус высота панели.
+        let topY = screenQuartz.origin.y + ScreenCoordinateConverter.menuBarHeight
         let bottomY = screenQuartz.origin.y + screenQuartz.height - TaskbarConstants.panelHeight
 
         return CGRect(
@@ -107,12 +88,5 @@ final class WindowSnapService {
             width: screenQuartz.width,
             height: max(0, bottomY - topY)
         )
-    }
-
-    private func isFrame(_ lhs: CGRect, approximatelyEqualTo rhs: CGRect) -> Bool {
-        abs(lhs.origin.x - rhs.origin.x) <= toleranceInPoints &&
-        abs(lhs.origin.y - rhs.origin.y) <= toleranceInPoints &&
-        abs(lhs.width - rhs.width) <= toleranceInPoints &&
-        abs(lhs.height - rhs.height) <= toleranceInPoints
     }
 }

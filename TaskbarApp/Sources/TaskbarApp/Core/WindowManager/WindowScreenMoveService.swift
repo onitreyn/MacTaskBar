@@ -14,11 +14,17 @@ enum WindowScreenMoveService {
         guard index >= 0, index < NSScreen.screens.count else { return }
         let targetScreen = NSScreen.screens[index]
 
-        let currentScreen = ScreenCoordinateConverter.screenContaining(quartzFrame: window.frame)
+        // Используем АКТУАЛЬНЫЙ frame через AX — переданный `window.frame` мог устареть.
+        let currentFrame = AXWindowFrameWriter.currentFrame(of: window.axElement) ?? window.frame
+        let currentScreen = ScreenCoordinateConverter.screenContaining(quartzFrame: currentFrame)
         if currentScreen === targetScreen { return }
 
-        let targetFrame = centeredFrame(size: window.frame.size, on: targetScreen)
-        AXWindowFrameWriter.apply(targetFrame, to: window.axElement)
+        let targetFrame = centeredFrame(size: currentFrame.size, on: targetScreen)
+        // Сохранённый pre-snap frame (если окно было снаплено на старом экране)
+        // после переноса неактуален — иначе повторный «Растянуть» вернул бы окно
+        // на старый экран.
+        WindowSnapService.shared.invalidateSavedFrame(forWindowID: window.id)
+        AXWindowFrameWriter.applyWithRetry(targetFrame, to: window.axElement)
     }
 
     /// Прямоугольник заданного размера, отцентрированный в видимой области
@@ -26,9 +32,8 @@ enum WindowScreenMoveService {
     /// в координатах Quartz.
     private static func centeredFrame(size: CGSize, on screen: NSScreen) -> CGRect {
         let screenQuartz = ScreenCoordinateConverter.cocoaToQuartz(screen.frame)
-        let visibleQuartz = ScreenCoordinateConverter.cocoaToQuartz(screen.visibleFrame)
 
-        let topY = visibleQuartz.origin.y
+        let topY = screenQuartz.origin.y + ScreenCoordinateConverter.menuBarHeight
         let bottomY = screenQuartz.origin.y + screenQuartz.height - TaskbarConstants.panelHeight
         let availableHeight = max(0, bottomY - topY)
 
