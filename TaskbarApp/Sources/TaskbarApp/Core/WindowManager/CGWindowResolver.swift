@@ -1,15 +1,15 @@
 import AppKit
 
-/// Определяет, какие окна находятся на текущем Space, сверяя on-screen снапшот
-/// `CGWindowList` (только видимые сейчас окна) с окнами, перечисленными через AX.
+/// Сопоставляет AX-окна с on-screen снапшотом `CGWindowList`, чтобы получить
+/// их `CGWindowID` (нужен для превью через ScreenCaptureKit).
 ///
-/// Публичного per-window Space ID не существует, поэтому это самый хрупкий участок
-/// API. Реализован аддитивно: если снапшот получить не удалось (пустой список),
-/// вызывающий код просто не фильтрует окна по Space (мягкая деградация).
+/// Публичного способа получить CGWindowID прямо из AXUIElement нет, поэтому
+/// сверяем AX-фрейм с границами on-screen окон. Если снапшот пуст, окно просто
+/// не получит windowNumber (превью не покажется) — мягкая деградация.
 ///
 /// Заимствовано из macTaskbar (https://github.com/damonroberts95/macTaskbar),
 /// лицензия MIT, адаптировано под нашу архитектуру.
-enum SpaceObserver {
+enum CGWindowResolver {
 
     struct OnScreenWindow {
         let ownerPID: pid_t
@@ -17,9 +17,9 @@ enum SpaceObserver {
         let bounds: CGRect
     }
 
-    /// Список окон, физически видимых на текущем Space прямо сейчас.
-    /// `optionOnScreenOnly` отсекает окна на других Space'ах и свёрнутые.
-    static func currentSpaceOnScreenWindows() -> [OnScreenWindow] {
+    /// Список окон, физически видимых на экране прямо сейчас.
+    /// `optionOnScreenOnly` отсекает свёрнутые и скрытые окна.
+    static func currentOnScreenWindows() -> [OnScreenWindow] {
         guard let info = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID

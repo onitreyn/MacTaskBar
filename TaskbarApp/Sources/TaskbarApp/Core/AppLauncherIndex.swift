@@ -79,7 +79,10 @@ final class AppLauncherIndex {
     }
 
     func launch(bundleIdentifier: String) {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else { return }
-        NSWorkspace.shared.openApplication(at: url, configuration: .init()) { _, _ in }
+        // Запускаем по URL из нашего скана каталогов (надёжнее, чем повторный
+        // резолв через LaunchServices, который для некоторых приложений
+        // возвращает nil и тогда запуск молча не происходит).
+        guard let url = entry(forBundleIdentifier: bundleIdentifier)?.url else { return }
+        NSWorkspace.shared.open(url)
     }
 }

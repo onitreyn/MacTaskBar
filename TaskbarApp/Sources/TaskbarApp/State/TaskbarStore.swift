@@ -182,7 +182,7 @@ final class TaskbarStore: ObservableObject {
     }
 
     private func refreshAllApps() {
-        let onScreenWindows = SpaceObserver.currentSpaceOnScreenWindows()
+        let onScreenWindows = CGWindowResolver.currentOnScreenWindows()
         let runningApps = currentRunningApps(onScreenWindows: onScreenWindows)
 
         // Закреплённые приложения первыми (в порядке закрепления): запущенные — как
@@ -222,10 +222,31 @@ final class TaskbarStore: ObservableObject {
             items.append(app)
         }
 
+        assignApps(items)
+    }
+
+    /// Присваивает `apps` только если снапшот реально изменился. Без этого
+    /// `@Published` публикует на каждую пересборку (в т.ч. на 1-секундный self-heal
+    /// поллинг), панель перерисовывается и плитки пересоздаются — из-за чего
+    /// моргает hover-превью.
+    private func assignApps(_ items: [RunningAppInfo]) {
+        guard !sameSnapshot(items, apps) else { return }
         apps = items
     }
 
-    private func currentRunningApps(onScreenWindows: [SpaceObserver.OnScreenWindow]) -> [RunningAppInfo] {
+    private func sameSnapshot(_ a: [RunningAppInfo], _ b: [RunningAppInfo]) -> Bool {
+        guard a.count == b.count else { return false }
+        for (x, y) in zip(a, b) {
+            if x.id != y.id || x.isActive != y.isActive || x.isRunning != y.isRunning { return false }
+            guard x.windows.count == y.windows.count else { return false }
+            for (wx, wy) in zip(x.windows, y.windows) {
+                if wx.id != wy.id || wx.title != wy.title || wx.isMinimized != wy.isMinimized { return false }
+            }
+        }
+        return true
+    }
+
+    private func currentRunningApps(onScreenWindows: [CGWindowResolver.OnScreenWindow]) -> [RunningAppInfo] {
         let runningApps = lifecycleObserver.currentRegularApplications()
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
 
